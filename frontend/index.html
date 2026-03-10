@@ -277,10 +277,42 @@
   .loading::after { content: '...'; animation: dots 1.5s infinite; }
   @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
 
-  /* Responsive */
+  /* ── RESPONSIVE ── */
+  .mobile-toggle { display: none; background: none; border: none; font-size: 20px; color: var(--text); cursor: pointer; padding: 4px; margin-right: 8px; }
+  .sidebar-overlay { 
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); 
+    z-index: 900; backdrop-filter: blur(2px); 
+  }
+
   @media (max-width: 1200px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .grid-map { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 900px) {
+    .sidebar {
+      position: fixed; left: -220px; top: 56px; bottom: 0; z-index: 1000;
+      transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 20px 0 30px rgba(0,0,0,0.5);
+    }
+    .sidebar.mobile-active { left: 0; }
+    .sidebar-overlay.active { display: block; }
+    .mobile-toggle { display: block; }
+    .topbar-divider, .live-badge { display: none; }
+    .main-content { padding: 16px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .topbar { padding: 0 16px; }
+  }
+
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .login-card { width: 90%; padding: 32px 24px; }
+    .stat-value { font-size: 28px; }
+    .page-header h2 { font-size: 18px; }
+    .topbar-logo span { font-size: 13px; }
+    .alert-badge { font-size: 10px; padding: 2px 6px; }
+    .user-info { display: none; }
+    .data-table { display: block; overflow-x: auto; white-space: nowrap; }
   }
 </style>
 </head>
@@ -353,6 +385,7 @@
 <div id="app">
   <!-- TOPBAR -->
   <div class="topbar">
+    <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
     <div class="topbar-logo">
       <div class="topbar-logo-icon">💧</div>
       <span>Aquifer <em>Intelligence</em></span>
@@ -366,6 +399,7 @@
     </div>
   </div>
 
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
   <div class="app-body">
     <!-- SIDEBAR -->
     <div class="sidebar">
@@ -970,7 +1004,18 @@ function showPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`page-${page}`).classList.add('active');
-  document.getElementById(`nav-${page}`).classList.add('active');
+  const navEl = document.getElementById(`nav-${page}`);
+  if (navEl) navEl.classList.add('active');
+
+  // Close sidebar on mobile after clicking
+  if (window.innerWidth <= 900) {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar.classList.contains('mobile-active')) {
+      sidebar.classList.remove('mobile-active');
+      overlay.classList.remove('active');
+    }
+  }
 
   // Init maps on first visit, or force resize when returning
   if (page === 'livedata') loadLiveData();
@@ -1862,6 +1907,13 @@ window.addEventListener('load', async () => {
     if (document.getElementById('stress-map') && !stressMap) initStressMap();
   }, 500);
 });
+
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.toggle('mobile-active');
+  overlay.classList.toggle('active');
+}
 </script>
 </body>
 </html>
