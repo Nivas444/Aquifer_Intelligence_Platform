@@ -6,6 +6,11 @@ import math
 
 from config import DATABASE_PATH
 
+# Ensure database directory exists for persistent volumes
+_db_dir = os.path.dirname(os.path.abspath(DATABASE_PATH))
+if _db_dir and not os.path.exists(_db_dir):
+    os.makedirs(_db_dir, exist_ok=True)
+
 def get_db():
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
