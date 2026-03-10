@@ -1234,26 +1234,33 @@ async function loadAnalyticalHeatmap(map) {
       stressFeatures = await apiFetch('/aquifers/geojson');
     }
     
+    // Force remove any old analytical grid layers to avoid "tile" overlap
+    if (map._stressLayer) {
+      map.removeLayer(map._stressLayer);
+      map._stressLayer = null;
+    }
+
     if (map._heatLayer) {
       map.removeLayer(map._heatLayer);
     }
 
-    // Convert GeoJSON grid points to weighted heat points
+    // Convert GeoJSON grid points to weighted heat points using centroids
     const heatData = stressFeatures.features.map(f => {
-      const center = f.geometry.coordinates[0][0]; // Simplified: take first corner as point
-      const stress = f.properties.stress_level;
-      // Weight: higher stress = higher intensity
-      let weight = 0.2;
-      if (stress > 0.75) weight = 1.0;
-      else if (stress > 0.5) weight = 0.7;
-      else if (stress > 0.3) weight = 0.4;
+      const coords = f.geometry.coordinates[0];
+      // Calculate centroid of the grid cell [lng, lat]
+      const lng = (coords[0][0] + coords[2][0]) / 2;
+      const lat = (coords[0][1] + coords[2][1]) / 2;
       
-      return [center[1], center[0], weight];
+      const stress = f.properties.stress_level;
+      // Linear weight mapping for smoother gradients
+      const weight = 0.2 + (stress * 0.8);
+      
+      return [lat, lng, weight];
     });
 
     map._heatLayer = L.heatLayer(heatData, {
-      radius: 25,
-      blur: 20,
+      radius: 20,
+      blur: 15,
       maxZoom: 10,
       gradient: {
         0.2: '#00ff9d', // Normal
