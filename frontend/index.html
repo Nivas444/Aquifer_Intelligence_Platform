@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aquifer Intelligence Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #020d18;
+    --surface: #061928;
+    --surface2: #0a2235;
+    --border: #0e3a57;
+    --accent: #00d4ff;
+    --accent2: #00ff9d;
+    --warn: #ff8c00;
+    --danger: #ff2d55;
+    --text: #e0f0ff;
+    --muted: #4a7fa5;
+    --font-main: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-main); overflow: hidden; }
+
+  /* ── LOGIN ── */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; position: fixed; inset: 0; z-index: 1000;
+    background: radial-gradient(ellipse at 30% 50%, #001f3f 0%, #020d18 70%);
+  }
+  .login-bg-grid {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px; opacity: 0.3;
+  }
+  .login-card {
+    position: relative; z-index: 1; width: 420px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 48px; border-radius: 4px;
+    box-shadow: 0 0 80px rgba(0, 212, 255, 0.08);
+  }
+  .login-logo {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
+  }
+  .login-logo-icon {
+    width: 44px; height: 44px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .login-logo h1 { font-size: 18px; font-weight: 800; line-height: 1.1; }
+  .login-logo span { font-size: 11px; color: var(--muted); font-family: var(--font-mono); letter-spacing: 2px; }
+  .login-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .login-sub { color: var(--muted); font-size: 13px; margin-bottom: 32px; font-family: var(--font-mono); }
+  .form-group { margin-bottom: 20px; }
+  .form-group label { display: block; font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-bottom: 8px; font-family: var(--font-mono); }
+  .form-group input {
+    width: 100%; padding: 12px 16px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--font-mono); font-size: 13px;
+    border-radius: 3px; outline: none; transition: border-color 0.2s;
+  }
+  .form-group input:focus { border-color: var(--accent); }
+  .btn-primary {
+    width: 100%; padding: 14px; background: var(--accent);
+    color: var(--bg); font-family: var(--font-main); font-weight: 700;
+    font-size: 14px; letter-spacing: 1px; border: none; border-radius: 3px;
+    cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .login-hint { margin-top: 20px; text-align: center; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+  .login-hint span { color: var(--accent); }
+
+  /* ── APP SHELL ── */
+  #app { display: none; height: 100vh; flex-direction: column; }
+  #app.active { display: flex; }
+
+  /* Topbar */
+  .topbar {
+    height: 56px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 16px; flex-shrink: 0;
+    position: relative; z-index: 100;
+  }
+  .topbar-logo { display: flex; align-items: center; gap: 10px; }
+  .topbar-logo-icon {
+    width: 30px; height: 30px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .topbar-logo span { font-size: 15px; font-weight: 800; }
+  .topbar-logo em { font-style: normal; color: var(--accent); }
+  .topbar-divider { width: 1px; height: 30px; background: var(--border); }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--accent2);
+  }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .alert-badge {
+    background: var(--danger); color: white; font-size: 11px; font-family: var(--font-mono);
+    padding: 3px 8px; border-radius: 3px; cursor: pointer;
+  }
+  .user-info { font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+  .btn-logout {
+    padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; border-radius: 3px; cursor: pointer;
+    transition: all 0.2s; font-family: var(--font-mono);
+  }
+  .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Layout */
+  .app-body { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 16px 0; flex-shrink: 0;
+  }
+  .nav-section { padding: 0 12px; margin-bottom: 4px; }
+  .nav-section-label {
+    font-size: 10px; letter-spacing: 3px; color: var(--muted);
+    font-family: var(--font-mono); padding: 8px 12px; margin-bottom: 2px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 3px; cursor: pointer; transition: all 0.15s;
+    font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 1px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(0, 212, 255, 0.08); color: var(--accent); border-left: 2px solid var(--accent); }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge { margin-left: auto; background: var(--danger); color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-family: var(--font-mono); }
+  .sidebar-footer { margin-top: auto; padding: 16px 24px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); border-top: 1px solid var(--border); }
+
+  /* Main content */
+  .main-content { flex: 1; overflow-y: auto; padding: 24px; }
+  .page { display: none; }
+  .page.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:none;} }
+
+  /* Page header */
+  .page-header { margin-bottom: 24px; }
+  .page-header h2 { font-size: 22px; font-weight: 800; }
+  .page-header p { color: var(--muted); font-size: 13px; font-family: var(--font-mono); margin-top: 4px; }
+
+  /* Stat cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px; border-radius: 4px; position: relative; overflow: hidden;
+  }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .stat-card.cyan::before { background: var(--accent); }
+  .stat-card.green::before { background: var(--accent2); }
+  .stat-card.warn::before { background: var(--warn); }
+  .stat-card.danger::before { background: var(--danger); }
+  .stat-label { font-size: 11px; letter-spacing: 2px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 10px; }
+  .stat-value { font-size: 36px; font-weight: 800; line-height: 1; }
+  .stat-value.cyan { color: var(--accent); }
+  .stat-value.green { color: var(--accent2); }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.danger { color: var(--danger); }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: var(--font-mono); }
+
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-map { display: grid; grid-template-columns: 1fr 380px; gap: 16px; margin-bottom: 16px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 20px;
+  }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .card-badge { font-size: 11px; font-family: var(--font-mono); color: var(--muted); }
+
+  /* Map */
+#stress-map, #wells-map, #full-map {
+  height: 380px; /* default; overridden where needed */
+  border-radius: 3px;
+  background: var(--surface); /* hide grey placeholder before tiles load */
+}
+#stress-map { height: 380px; }
+#wells-map { height: 500px; }
+#full-map { height: 600px; }
+
+  /* Alert items */
+  .alert-item {
+    padding: 12px; border-radius: 3px; margin-bottom: 8px;
+    border-left: 3px solid var(--border); background: var(--surface2);
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .alert-item.critical { border-left-color: var(--danger); }
+  .alert-item.high { border-left-color: var(--warn); }
+  .alert-item.moderate { border-left-color: #ffd600; }
+  .alert-item.low { border-left-color: var(--accent2); }
+  .alert-sev {
+    font-size: 9px; font-family: var(--font-mono); letter-spacing: 1px;
+    padding: 2px 6px; border-radius: 2px; text-transform: uppercase; flex-shrink: 0; margin-top: 2px;
+  }
+  .alert-sev.critical { background: rgba(255,45,85,0.15); color: var(--danger); }
+  .alert-sev.high { background: rgba(255,140,0,0.15); color: var(--warn); }
+  .alert-sev.moderate { background: rgba(255,214,0,0.12); color: #ffd600; }
+  .alert-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .alert-msg { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .alert-time { font-size: 11px; color: var(--muted); font-family: var(--font-mono); margin-top: 4px; }
+  .btn-ack {
+    margin-left: auto; padding: 4px 10px; background: transparent;
+    border: 1px solid var(--border); color: var(--muted); font-size: 11px;
+    border-radius: 2px; cursor: pointer; flex-shrink: 0; font-family: var(--font-mono);
+    transition: all 0.2s;
+  }
+  .btn-ack:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Aquifer table */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    text-align: left; padding: 10px 12px; font-size: 10px; letter-spacing: 2px;
+    color: var(--muted); font-family: var(--font-mono); border-bottom: 1px solid var(--border);
+  }
+  .data-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid rgba(14,58,87,0.5); }
+  .data-table tr:hover td { background: var(--surface2); }
+  .status-pill {
+    font-size: 10px; padding: 3px 8px; border-radius: 20px; font-family: var(--font-mono);
+    letter-spacing: 1px; font-weight: 700;
+  }
+  .status-pill.critical { background: rgba(255,45,85,0.15); color: var(--danger); }
+  .status-pill.high { background: rgba(255,140,0,0.15); color: var(--warn); }
+  .status-pill.moderate { background: rgba(255,214,0,0.12); color: #ffd600; }
+  .status-pill.normal { background: rgba(0,255,157,0.1); color: var(--accent2); }
+  .stress-bar-wrap { width: 100px; height: 6px; background: var(--border); border-radius: 3px; }
+  .stress-bar { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+  /* Charts */
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap-tall { position: relative; height: 280px; }
+
+  /* Forecast table */
+  .forecast-select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 12px; border-radius: 3px; font-family: var(--font-mono); font-size: 12px;
+  }
+
+  /* Risk badges */
+  .risk-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(14,58,87,0.4); }
+  .risk-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .risk-region { font-size: 12px; color: var(--muted); }
+  .risk-score { font-family: var(--font-mono); font-size: 14px; font-weight: 700; }
+  .risk-bar-wrap { width: 80px; height: 4px; background: var(--border); border-radius: 2px; }
+  .risk-bar { height: 100%; border-radius: 2px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Regulatory */
+  .rec-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 16px; margin-bottom: 12px; }
+  .rec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .rec-title { font-size: 14px; font-weight: 700; }
+  .rec-list { list-style: none; }
+  .rec-list li { font-size: 13px; color: var(--muted); padding: 4px 0; padding-left: 16px; position: relative; }
+  .rec-list li::before { content: '→'; position: absolute; left: 0; color: var(--accent); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--muted); font-family: var(--font-mono); }
+  .loading::after { content: '...'; animation: dots 1.5s infinite; }
+  @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-map { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-bg-grid"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">💧</div>
+      <div>
+        <h1>Aquifer<br>Intelligence</h1>
+        <span>PLATFORM v1.0</span>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div style="display:flex;gap:0;margin-bottom:28px;border-bottom:1px solid var(--border)">
+      <button id="tab-login" onclick="switchTab('login')" style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:12px;letter-spacing:2px;cursor:pointer;">SIGN IN</button>
+      <button id="tab-register" onclick="switchTab('register')" style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--font-mono);font-size:12px;letter-spacing:2px;cursor:pointer;">REGISTER</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="form-login">
+      <div class="form-group">
+        <label>EMAIL ADDRESS</label>
+        <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>PASSWORD</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="btn-login" onclick="doLogin()">ACCESS PLATFORM</button>
+      <div class="login-hint" style="margin-top:16px">Demo: <span>admin@aquifer.io</span> / <span>admin123</span></div>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="form-register" style="display:none">
+      <div class="form-group">
+        <label>FULL NAME</label>
+        <input type="text" id="reg-username" placeholder="Your Name" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label>EMAIL ADDRESS</label>
+        <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>ORGANIZATION</label>
+        <input type="text" id="reg-org" placeholder="USGS / Government / Research..." autocomplete="organization">
+      </div>
+      <div class="form-group">
+        <label>PASSWORD (min 6 chars)</label>
+        <input type="password" id="reg-pass" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>CONFIRM PASSWORD</label>
+        <input type="password" id="reg-pass2" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <button class="btn-primary" id="btn-register" onclick="doRegister()" style="background:var(--accent2);color:var(--bg)">CREATE ACCOUNT</button>
+    </div>
+
+    <!-- ERROR / SUCCESS -->
+    <div id="auth-error" style="display:none;margin-top:14px;padding:10px 14px;background:rgba(255,45,85,0.12);border:1px solid rgba(255,45,85,0.3);border-radius:3px;font-size:12px;color:#ff2d55;font-family:var(--font-mono);"></div>
+    <div id="auth-success" style="display:none;margin-top:14px;padding:10px 14px;background:rgba(0,255,157,0.1);border:1px solid rgba(0,255,157,0.3);border-radius:3px;font-size:12px;color:var(--accent2);font-family:var(--font-mono);"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="topbar-logo-icon">💧</div>
+      <span>Aquifer <em>Intelligence</em></span>
+    </div>
+    <div class="topbar-divider"></div>
+    <div class="live-badge"><div class="live-dot"></div>LIVE MONITORING</div>
+    <div class="topbar-right">
+      <div class="alert-badge" onclick="showPage('alerts')">⚠ <span id="alert-count">7</span> ALERTS</div>
+      <div class="user-info" id="topbar-user">admin@aquifer.io</div>
+      <button class="btn-logout" onclick="doLogout()">LOGOUT</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="nav-section-label">NAVIGATION</div>
+      <div class="nav-section">
+        <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+          <span class="icon">📊</span> Dashboard
+        </div>
+        <div class="nav-item" onclick="showPage('map')" id="nav-map">
+          <span class="icon">🌍</span> Stress Map
+        </div>
+        <div class="nav-item" onclick="showPage('wells')" id="nav-wells">
+          <span class="icon">🔵</span> Wells
+        </div>
+        <div class="nav-item" onclick="showPage('alerts')" id="nav-alerts">
+          <span class="icon">🚨</span> Alerts
+          <span class="nav-badge" id="nav-alert-badge">7</span>
+        </div>
+      </div>
+      <div class="nav-section-label">ANALYTICS</div>
+      <div class="nav-section">
+        <div class="nav-item" onclick="showPage('forecast')" id="nav-forecast">
+          <span class="icon">📈</span> Forecasting
+        </div>
+        <div class="nav-item" onclick="showPage('history')" id="nav-history">
+          <span class="icon">🕰</span> History
+        </div>
+        <div class="nav-item" onclick="showPage('recommend')" id="nav-recommend">
+          <span class="icon">🎯</span> Site Recommender
+        </div>
+        <div class="nav-item" onclick="showPage('regulatory')" id="nav-regulatory">
+          <span class="icon">📑</span> Regulatory
+        </div>
+        <div class="nav-item" onclick="showPage('livedata')" id="nav-livedata">
+          <span class="icon">📡</span> Live Data
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        AIP v1.0.0<br>
+        SQLite · FastAPI<br>
+        <span style="color:var(--accent2)">● ONLINE</span>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content" id="main-content">
+
+      <!-- DASHBOARD PAGE -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <h2>System Overview</h2>
+          <p>// Real-time groundwater intelligence dashboard</p>
+        </div>
+        <div class="stats-grid" id="dash-stats">
+          <div class="stat-card cyan"><div class="stat-label">TOTAL AQUIFERS</div><div class="stat-value cyan" id="stat-total">—</div><div class="stat-sub">monitored regions</div></div>
+          <div class="stat-card danger"><div class="stat-label">CRITICAL STATUS</div><div class="stat-value danger" id="stat-critical">—</div><div class="stat-sub">need immediate action</div></div>
+          <div class="stat-card warn"><div class="stat-label">ACTIVE ALERTS</div><div class="stat-value warn" id="stat-alerts">—</div><div class="stat-sub">unacknowledged</div></div>
+          <div class="stat-card green"><div class="stat-label">AVG STRESS LEVEL</div><div class="stat-value green" id="stat-stress">—</div><div class="stat-sub">across all aquifers</div></div>
+        </div>
+        <div class="grid-map">
+          <div class="card" style="display:flex;flex-direction:column;height:100%">
+            <div class="card-header" style="flex-shrink:0">
+              <div class="card-title">🌍 USA Underground Water Usage</div>
+              <div class="card-badge">REAL-TIME</div>
+            </div>
+            <div id="stress-map" style="flex:1;min-height:380px;height:auto;border-radius:3px"></div>
+          </div>
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header"><div class="card-title">⚠ Active Alerts</div></div>
+              <div id="dash-alerts"><div class="loading">Loading</div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">📉 Top Stressed</div></div>
+              <div id="dash-stressed"><div class="loading">Loading</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📈 Water Level Trend (30d)</div></div>
+            <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🍩 Stress Distribution</div></div>
+            <div class="chart-wrap"><canvas id="dist-chart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP PAGE -->
+      <div class="page" id="page-map">
+        <div class="page-header">
+          <h2>Aquifer Stress Map</h2>
+          <p>// Geographic visualization of groundwater stress across monitored regions</p>
+        </div>
+        <div class="grid-map">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🌍 Interactive Stress Map</div>
+              <div style="display:flex;gap:12px;font-size:11px;font-family:var(--font-mono)">
+                <span style="color:var(--danger)">● Critical</span>
+                <span style="color:var(--warn)">● High</span>
+                <span style="color:#ffd600">● Moderate</span>
+                <span style="color:var(--accent2)">● Normal</span>
+              </div>
+            </div>
+            <div id="full-map"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">📋 Aquifer Index</div></div>
+            <div id="map-list" style="overflow-y:auto;max-height:600px"><div class="loading">Loading</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WELLS PAGE -->
+      <div class="page" id="page-wells">
+        <div class="page-header">
+          <h2>Well Monitoring</h2>
+          <p>// USGS monitoring well network status and readings</p>
+        </div>
+        <div class="stats-grid" id="well-stats">
+          <div class="stat-card cyan"><div class="stat-label">TOTAL WELLS</div><div class="stat-value cyan" id="ws-total">—</div></div>
+          <div class="stat-card green"><div class="stat-label">ACTIVE</div><div class="stat-value green" id="ws-active">—</div></div>
+          <div class="stat-card warn"><div class="stat-label">DECLINING</div><div class="stat-value warn" id="ws-declining">—</div></div>
+          <div class="stat-card danger"><div class="stat-label">CRITICAL</div><div class="stat-value danger" id="ws-critical">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">🗺 Well Locations</div></div>
+          <div id="wells-map"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 Well Data</div></div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>SITE NO</th><th>NAME</th><th>AQUIFER</th><th>DEPTH (m)</th>
+                  <th>WATER LEVEL</th><th>CHANGE</th><th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="wells-tbody"><tr><td colspan="7" class="loading">Loading</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERTS PAGE -->
+      <div class="page" id="page-alerts">
+        <div class="page-header">
+          <h2>Alert Center</h2>
+          <p>// Active water scarcity and stress alerts across monitored regions</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card danger"><div class="stat-label">CRITICAL</div><div class="stat-value danger" id="al-critical">—</div></div>
+          <div class="stat-card warn"><div class="stat-label">HIGH</div><div class="stat-value warn" id="al-high">—</div></div>
+          <div class="stat-card" style="border-top:2px solid #ffd600"><div class="stat-label">MODERATE</div><div class="stat-value" style="color:#ffd600" id="al-moderate">—</div></div>
+          <div class="stat-card cyan"><div class="stat-label">UNREAD</div><div class="stat-value cyan" id="al-unread">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">⚠ All Active Alerts</div>
+            <div style="display:flex;gap:8px">
+              <select class="forecast-select" id="alert-filter" onchange="filterAlerts()">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="moderate">Moderate</option>
+              </select>
+            </div>
+          </div>
+          <div id="alerts-list"><div class="loading">Loading</div></div>
+        </div>
+      </div>
+
+      <!-- FORECAST PAGE -->
+      <div class="page" id="page-forecast">
+        <div class="page-header">
+          <h2>AI Water Demand Forecasting</h2>
+          <p>// Machine learning predictions for groundwater levels and demand</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">🎯 Select Aquifer</div>
+            <select class="forecast-select" id="forecast-aq-select" onchange="loadForecast()">
+              <option value="">Loading aquifers...</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📈 Water Level Forecast (90d)</div>
+              <div class="card-badge">AI MODEL v1.0</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="forecast-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">💧 Demand Forecast (90d)</div>
+              <div class="card-badge">SECTOR BREAKDOWN</div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="demand-chart"></canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🚨 Scarcity Risk Index</div></div>
+          <div id="scarcity-list"><div class="loading">Loading</div></div>
+        </div>
+      </div>
+
+      <!-- HISTORY PAGE -->
+      <div class="page" id="page-history">
+        <div class="page-header">
+          <h2>Historical Analysis</h2>
+          <p>// Long-term groundwater trend analysis across monitored aquifers</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">📊 Select Aquifer & Period</div>
+            <div style="display:flex;gap:8px">
+              <select class="forecast-select" id="history-aq-select" onchange="loadHistory()">
+                <option value="">Loading...</option>
+              </select>
+              <select class="forecast-select" id="history-days" onchange="loadHistory()">
+                <option value="30">30 days</option>
+                <option value="60">60 days</option>
+                <option value="90" selected>90 days</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📉 Historical Water Levels</div></div>
+          <div style="height:300px"><canvas id="history-chart"></canvas></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><div class="card-title">🗺 Regional Summary</div></div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr><th>STATE</th><th>AQUIFERS</th><th>AVG STRESS</th><th>TOTAL EXTRACTION</th><th>TOTAL RECHARGE</th><th>BALANCE</th></tr>
+              </thead>
+              <tbody id="regional-tbody"><tr><td colspan="6" class="loading">Loading</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- REGULATORY PAGE -->
+      <div class="page" id="page-regulatory">
+        <div class="page-header">
+          <h2>Regulatory Dashboard</h2>
+          <p>// Compliance monitoring and policy recommendations for water agencies</p>
+        </div>
+        <div class="grid-2" style="margin-bottom:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">✅ Compliance Status</div></div>
+            <div id="compliance-list"><div class="loading">Loading</div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">📋 Policy Recommendations</div></div>
+            <div id="recommendations-list"><div class="loading">Loading</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📜 Permit Summary</div></div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>AQUIFER</th><th>STATE</th><th>PERMITTED</th><th>ACTUAL</th><th>PERMIT STATUS</th><th>COMPLIANCE</th></tr></thead>
+              <tbody id="permits-tbody"><tr><td colspan="6" class="loading">Loading</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECOMMENDATION PAGE -->
+      <div class="page" id="page-recommend">
+        <div class="page-header">
+          <h2>Site Recommender</h2>
+          <p>// AI-driven optimal site selection based on live satellite and climate data</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">🏗 Select Facility Type</div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <select class="forecast-select" id="rec-type-select" style="min-width:200px">
+                <option value="farm">🌾 Small Farm (High Water Need)</option>
+                <option value="industry">🏭 Industrial Facility (Stable Volume)</option>
+                <option value="data_center">💻 Data Center (High Stability / Cooling)</option>
+              </select>
+              <button class="btn-primary" style="padding:8px 16px;width:auto" onclick="loadRecommendations()">Analyze Sites</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🏆 Top Recommended Aquifers</div>
+            <div class="card-badge">LIVE SYNC DATA</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>RANK</th>
+                  <th>AQUIFER</th>
+                  <th>REGION</th>
+                  <th>SUITABILITY SCORE</th>
+                  <th>KEY DECISION FACTOR</th>
+                </tr>
+              </thead>
+              <tbody id="rec-tbody">
+                <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted);font-family:var(--font-mono)">Select a facility type and click Analyze Sites to begin.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE DATA PAGE -->
+      <div class="page" id="page-livedata">
+        <div class="page-header">
+          <h2>Live Data Integration</h2>
+          <p>// Real-time sync status — USGS · NASA GRACE · NOAA Climate</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card cyan" id="sync-usgs-card">
+            <div class="stat-label">USGS WELLS</div>
+            <div class="stat-value cyan" id="sync-usgs-status">—</div>
+            <div class="stat-sub" id="sync-usgs-time">Last sync: —</div>
+          </div>
+          <div class="stat-card green" id="sync-noaa-card">
+            <div class="stat-label">NOAA CLIMATE</div>
+            <div class="stat-value green" id="sync-noaa-status">—</div>
+            <div class="stat-sub" id="sync-noaa-time">Last sync: —</div>
+          </div>
+          <div class="stat-card warn" id="sync-grace-card">
+            <div class="stat-label">NASA GRACE</div>
+            <div class="stat-value warn" id="sync-grace-status">—</div>
+            <div class="stat-sub" id="sync-grace-time">Last sync: —</div>
+          </div>
+          <div class="stat-card" style="border-top:2px solid var(--accent2)">
+            <div class="stat-label">SCHEDULER</div>
+            <div class="stat-value" style="color:var(--accent2)" id="sync-scheduler">—</div>
+            <div class="stat-sub">background sync engine</div>
+          </div>
+        </div>
+        <div class="grid-3" style="margin-bottom:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📡 USGS Water Services</div></div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.8;font-family:var(--font-mono)">
+              <div>Source: waterservices.usgs.gov</div>
+              <div>Param: Depth to water (72019)</div>
+              <div>Wells: 850,000+ nationwide</div>
+              <div>Interval: Every <strong style="color:var(--accent)">15 min</strong></div>
+              <div>Auth: <strong style="color:var(--accent2)">No key required</strong></div>
+            </div>
+            <button class="btn-primary" style="margin-top:16px;padding:10px" onclick="triggerSync('usgs')">▶ Sync Now</button>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🌤 NOAA Climate Data</div></div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.8;font-family:var(--font-mono)">
+              <div>Source: ncdc.noaa.gov/cdo-web</div>
+              <div>Data: Precipitation, Temp, ETo</div>
+              <div>Drought Monitor: Real-time</div>
+              <div>Interval: Every <strong style="color:var(--accent)">1 hour</strong></div>
+              <div>Auth: <strong style="color:var(--accent2)">API Key ✓</strong></div>
+            </div>
+            <button class="btn-primary" style="margin-top:16px;padding:10px;background:var(--accent2);color:var(--bg)" onclick="triggerSync('noaa')">▶ Sync Now</button>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🛰 NASA GRACE Satellite</div></div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.8;font-family:var(--font-mono)">
+              <div>Source: opendap.earthdata.nasa.gov</div>
+              <div>Dataset: GRACE-FO RL06.1 Mascon</div>
+              <div>Resolution: 0.5° × 0.5° grid</div>
+              <div>Interval: Every <strong style="color:var(--accent)">24 hours</strong></div>
+              <div>Auth: <strong style="color:var(--accent2)">EarthData Token ✓</strong></div>
+            </div>
+            <button class="btn-primary" style="margin-top:16px;padding:10px;background:var(--warn);color:var(--bg)" onclick="triggerSync('grace')">▶ Sync Now</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📋 Sync History Log</div>
+            <button class="btn-logout" onclick="loadSyncLog()">↻ Refresh</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>SOURCE</th><th>SYNCED AT</th><th>WELLS UPDATED</th><th>READINGS ADDED</th><th>ERRORS</th><th>STATUS</th></tr></thead>
+              <tbody id="sync-log-tbody"><tr><td colspan="6" class="loading">Loading</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      
+  </div><!-- app-body -->
+</div><!-- app -->
+
+<script>
+const API = 'http://localhost:8000/api';
+let token = null;
+let currentUser = null;
+let allAlerts = [];
+let trendChart, distChart, forecastChart, demandChart, historyChart;
+let stressMap, fullMap, wellsMap;
+
+// ── TAB SWITCHING ──
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('form-login').style.display    = isLogin ? 'block' : 'none';
+  document.getElementById('form-register').style.display = isLogin ? 'none'  : 'block';
+  document.getElementById('tab-login').style.borderBottomColor    = isLogin ? 'var(--accent)' : 'transparent';
+  document.getElementById('tab-login').style.color                = isLogin ? 'var(--accent)' : 'var(--muted)';
+  document.getElementById('tab-register').style.borderBottomColor = isLogin ? 'transparent' : 'var(--accent2)';
+  document.getElementById('tab-register').style.color             = isLogin ? 'var(--muted)' : 'var(--accent2)';
+  hideAuthMessages();
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('auth-success').style.display = 'none';
+}
+
+function showAuthSuccess(msg) {
+  const el = document.getElementById('auth-success');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+function hideAuthMessages() {
+  document.getElementById('auth-error').style.display   = 'none';
+  document.getElementById('auth-success').style.display = 'none';
+}
+
+function setButtonLoading(btnId, loading, defaultText) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled    = loading;
+  btn.textContent = loading ? 'CONNECTING...' : defaultText;
+}
+
+// ── AUTH ──
+async function doLogin() {
+  const email = (document.getElementById('login-email').value || '').trim();
+  const pass  = document.getElementById('login-pass').value || '';
+
+  if (!email || !pass) { showAuthError('Please enter your email and password.'); return; }
+
+  setButtonLoading('btn-login', true, 'ACCESS PLATFORM');
+  hideAuthMessages();
+
+  // Try real backend first
+  try {
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${API}/auth/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password: pass }),
+      signal:  controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data  = await res.json();
+      token       = data.token;
+      currentUser = data.user;
+      enterApp(false);
+      return;
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showAuthError(err.detail || 'Invalid email or password.');
+      setButtonLoading('btn-login', false, 'ACCESS PLATFORM');
+      return;
+    }
+  } catch(e) {
+    console.warn('Backend offline:', e.message);
+  }
+
+  // Offline demo fallback
+  const DEMO = {
+    'admin@aquifer.io':   { password: 'admin123', username: 'Admin',   role: 'admin'   },
+    'analyst@aquifer.io': { password: 'admin123', username: 'Analyst', role: 'analyst' },
+  };
+  if (DEMO[email] && DEMO[email].password === pass) {
+    token       = 'demo';
+    currentUser = { username: DEMO[email].username, email, role: DEMO[email].role };
+    enterApp(true);
+  } else {
+    showAuthError('Backend offline. Demo: admin@aquifer.io / admin123');
+    setButtonLoading('btn-login', false, 'ACCESS PLATFORM');
+  }
+}
+
+async function doRegister() {
+  const username = (document.getElementById('reg-username').value || '').trim();
+  const email    = (document.getElementById('reg-email').value    || '').trim();
+  const org      = (document.getElementById('reg-org').value      || '').trim();
+  const pass     = document.getElementById('reg-pass').value  || '';
+  const pass2    = document.getElementById('reg-pass2').value || '';
+
+  if (!username || !email || !pass) { showAuthError('Name, email and password are required.'); return; }
+  if (pass !== pass2)               { showAuthError('Passwords do not match.'); return; }
+  if (pass.length < 6)              { showAuthError('Password must be at least 6 characters.'); return; }
+
+  setButtonLoading('btn-register', true, 'CREATE ACCOUNT');
+  hideAuthMessages();
+
+  try {
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${API}/auth/register`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, username, password: pass, organization: org }),
+      signal:  controller.signal
+    });
+    clearTimeout(timeout);
+
+    const data = await res.json();
+    if (res.ok) {
+      // Auto-login after register
+      token       = data.token;
+      currentUser = data.user;
+      showAuthSuccess('Account created! Logging you in...');
+      setTimeout(() => enterApp(false), 800);
+    } else {
+      showAuthError(data.detail || 'Registration failed. Please try again.');
+      setButtonLoading('btn-register', false, 'CREATE ACCOUNT');
+    }
+  } catch(e) {
+    showAuthError('Backend offline. Please start the backend server first.');
+    setButtonLoading('btn-register', false, 'CREATE ACCOUNT');
+  }
+}
+
+function enterApp(isDemoMode = false) {
+  document.getElementById('topbar-user').textContent = currentUser.username + ' (' + currentUser.role + ')';
+  hideAuthMessages();
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+
+  // Store token for session persistence
+  if (token && token !== 'demo') {
+    try { localStorage.setItem('aip_token', token); } catch(e) {}
+  }
+
+  const liveBadge = document.querySelector('.live-badge');
+  if (isDemoMode) {
+    liveBadge.innerHTML = '<div class="live-dot" style="background:#ff8c00"></div><span style="color:#ff8c00">DEMO MODE</span>';
+    showDemoBanner();
+  } else {
+    liveBadge.innerHTML = '<div class="live-dot"></div>LIVE · BACKEND CONNECTED';
+  }
+
+  initApp();
+}
+
+function showDemoBanner() {
+  if (document.getElementById('demo-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'demo-banner';
+  banner.style.cssText = 'background:rgba(255,140,0,0.12);border-bottom:1px solid rgba(255,140,0,0.3);padding:8px 24px;font-size:12px;font-family:var(--font-mono);color:#ff8c00;display:flex;align-items:center;gap:12px;flex-shrink:0;';
+  banner.innerHTML = '⚠ DEMO MODE — Backend not connected. Showing mock data. <strong>To connect:</strong> cd backend && python main.py <button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;border:none;color:#ff8c00;cursor:pointer;font-size:18px">✕</button>';
+  document.querySelector('.app-body').parentElement.insertBefore(banner, document.querySelector('.app-body'));
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function doLogout() {
+  token = null; currentUser = null;
+  try { localStorage.removeItem('aip_token'); } catch(e) {}
+  const banner = document.getElementById('demo-banner');
+  if (banner) banner.remove();
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').classList.remove('active');
+  // Reset login form
+  switchTab('login');
+}
+
+// Enter key on login or register form
+document.addEventListener('keypress', e => {
+  if (e.key !== 'Enter') return;
+  const screen = document.getElementById('login-screen');
+  if (screen.style.display === 'none') return;
+  const registerVisible = document.getElementById('form-register').style.display !== 'none';
+  if (registerVisible) doRegister(); else doLogin();
+});
+
+// ── NAVIGATION ──
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  document.getElementById(`nav-${page}`).classList.add('active');
+
+  // Init maps on first visit, or force resize when returning
+  if (page === 'livedata') loadLiveData();
+  if (page === 'dashboard') {
+    if (!stressMap) setTimeout(initStressMap, 100);
+    else setTimeout(() => stressMap.invalidateSize(), 200);
+  }
+  if (page === 'map') {
+    if (!fullMap) setTimeout(initFullMap, 100);
+    else setTimeout(() => fullMap.invalidateSize(), 200);
+  }
+  if (page === 'wells') {
+    if (!wellsMap) { loadWells(); setTimeout(initWellsMap, 100); }
+    else setTimeout(() => wellsMap.invalidateSize(), 200);
+  }
+  if (page === 'alerts') loadAlerts();
+  if (page === 'forecast') loadForecastPage();
+  if (page === 'history') loadHistoryPage();
+  if (page === 'regulatory') loadRegulatory();
+}
+
+// ── INIT ──
+async function initApp() {
+  // load dashboard stats and simultaneously preload map/geojson data
+  await Promise.all([ loadDashboard(), preloadMaps() ]);
+  setTimeout(initStressMap, 200);
+}
+
+// Pre-fetch map data and geojson so later navigation is instant
+async function preloadMaps() {
+  try {
+    if (!aquiferMapData) {
+      aquiferMapData = await apiFetch('/aquifers/map');
+    }
+    // do not fetch the potentially large geojson grid until a map page is shown
+  } catch (e) {
+    // ignore failures; maps will load lazily when needed
+  }
+}
+
+// ── DASHBOARD ──
+async function loadDashboard() {
+  try {
+    const [overview, trends, dist] = await Promise.all([
+      apiFetch('/dashboard/overview'),
+      apiFetch('/dashboard/trends?days=30'),
+      apiFetch('/dashboard/stress-distribution')
+    ]);
+
+    // Stats
+    document.getElementById('stat-total').textContent = overview.aquifers.total || 10;
+    document.getElementById('stat-critical').textContent = overview.aquifers.critical || 1;
+    document.getElementById('stat-alerts').textContent = overview.alerts.unread || 7;
+    document.getElementById('stat-stress').textContent = (overview.aquifers.avg_stress * 100).toFixed(0) + '%';
+    document.getElementById('alert-count').textContent = overview.alerts.total || 7;
+    document.getElementById('nav-alert-badge').textContent = overview.alerts.total || 7;
+
+    // Top stressed
+    renderTopStressed(overview.top_stressed);
+    renderDashAlerts(overview.recent_alerts);
+    renderTrendChart(trends);
+    renderDistChart(dist);
+  } catch(e) {
+    renderDemoData();
+  }
+}
+
+function renderTopStressed(data) {
+  const el = document.getElementById('dash-stressed');
+  if (!data || !data.length) { el.innerHTML = '<div class="loading">No data</div>'; return; }
+  el.innerHTML = data.map(a => `
+    <div class="risk-row">
+      <div>
+        <div class="risk-name">${a.name}</div>
+        <div class="risk-region">${a.region}</div>
+      </div>
+      <div>
+        <div class="stress-bar-wrap">
+          <div class="stress-bar" style="width:${a.stress_level*100}%;background:${stressColor(a.stress_level)}"></div>
+        </div>
+      </div>
+      <span class="status-pill ${a.status}">${a.status}</span>
+    </div>
+  `).join('');
+}
+
+function renderDashAlerts(data) {
+  const el = document.getElementById('dash-alerts');
+  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--accent2);font-size:13px;padding:10px">No active alerts</div>'; return; }
+  el.innerHTML = data.map(a => `
+    <div class="alert-item ${a.severity}">
+      <span class="alert-sev ${a.severity}">${a.severity}</span>
+      <div>
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-time">${a.aquifer_name} · ${timeAgo(a.created_at)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderTrendChart(data) {
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  const labels = data.map(d => d.date?.slice(5) || d.date);
+  const values = data.map(d => d.avg_level);
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Avg Water Level (m)',
+        data: values,
+        borderColor: '#00d4ff',
+        backgroundColor: 'rgba(0,212,255,0.05)',
+        fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2
+      }]
+    },
+    options: { ...chartOptions(), scales: { x: xScale(), y: yScale('Level (m)') } }
+  });
+}
+
+function renderDistChart(data) {
+  const ctx = document.getElementById('dist-chart').getContext('2d');
+  if (distChart) distChart.destroy();
+  const colors = { critical: '#ff2d55', high: '#ff8c00', moderate: '#ffd600', normal: '#00ff9d' };
+  distChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.status?.toUpperCase()),
+      datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colors[d.status] || '#4a7fa5'), borderWidth: 0 }]
+    },
+    options: { ...chartOptions(), cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#4a7fa5', font: { family: 'Space Mono', size: 10 } } } } }
+  });
+}
+
+// ── MAPS ──
+// cached GeoJSON features (loaded once)
+let stressFeatures = null;
+// cached response for /aquifers/map so list rendering is faster
+let aquiferMapData = null;
+
+function initStressMap() {
+  stressMap = L.map('stress-map', { zoomControl: true }).setView([39, -98], 4);
+  // light base map for better colour contrast
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 18
+  }).addTo(stressMap);
+  loadWaterUsageHeatmap(stressMap);
+  // ensure correct sizing after container becomes visible
+  stressMap.whenReady(() => setTimeout(() => stressMap.invalidateSize(), 100));
+}
+
+function initFullMap() {
+  fullMap = L.map('full-map', { zoomControl: true }).setView([39, -98], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 18
+  }).addTo(fullMap);
+  loadStressLayer(fullMap);
+  loadMapList();
+  fullMap.whenReady(() => setTimeout(() => fullMap.invalidateSize(), 100));
+}
+
+function initWellsMap() {
+  wellsMap = L.map('wells-map', { zoomControl: true }).setView([39, -98], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 18
+  }).addTo(wellsMap);
+  loadWellMarkers(wellsMap);
+}
+
+async function loadStressLayer(map) {
+  try {
+    if (!stressFeatures) {
+      const geo = await apiFetch('/aquifers/geojson');
+      stressFeatures = geo;
+    }
+    if (map._stressLayer) {
+      map.removeLayer(map._stressLayer);
+    }
+    map._stressLayer = L.geoJSON(stressFeatures, {
+      style: function(feature) {
+        const color = stressColorHex(feature.properties.stress_level);
+        return {
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.4,
+          weight: 1
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup(`
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#e0f0ff;background:#061928;padding:4px">
+            <strong style="color:#00d4ff">${feature.properties.name}</strong><br>
+            Region: ${feature.properties.region}<br>
+            Stress: ${(feature.properties.stress_level*100).toFixed(0)}%<br>
+            Status: <span style="color:${stressColorHex(feature.properties.stress_level)}">${feature.properties.status?.toUpperCase()}</span><br>
+          </div>
+        `);
+      }
+    }).addTo(map);
+  } catch(e) {
+    console.log('Stress layer error', e);
+    if (aquiferMapData) {
+      aquiferMapData.forEach(aq => {
+        const color = stressColorHex(aq.stress_level);
+        const radius = aq.area_km2 ? Math.sqrt((aq.area_km2 * 1_000_000) / Math.PI) : 500000;
+        L.circle([aq.lng, aq.lat], {radius, color, fillColor: color, fillOpacity: 0.4}).addTo(map);
+      });
+    }
+  }
+}
+
+async function loadWaterUsageHeatmap(map) {
+  try {
+    const wells = await apiFetch('/wells/?limit=1000');
+    
+    if (map._heatLayer) {
+      map.removeLayer(map._heatLayer);
+    }
+    
+    const heatData = wells.map(w => {
+      let intensity = 0.4; // Base low intensity (Green)
+      if (w.status === 'critical') intensity = 1.0; // Max intensity (Red)
+      else if (w.status === 'declining') intensity = 0.8; // Medium-high (Orange/Yellow)
+      else if (w.water_level_change && w.water_level_change < -1) intensity = 0.6; // Deeper wells
+      return [w.lat, w.lng, intensity];
+    });
+
+    map._heatLayer = L.heatLayer(heatData, {
+      radius: 40,
+      blur: 25,
+      maxZoom: 10,
+      gradient: {
+        0.2: '#00ff9d', // Low stress (green)
+        0.5: '#ffd600', // Medium stress (yellow)
+        0.7: '#ff8c00', // High stress (orange)
+        1.0: '#ff2d55'  // Extremely high stress (red)
+      }
+    }).addTo(map);
+
+  } catch (e) {
+    console.error("Failed to load water usage heatmap:", e);
+  }
+}
+
+
+async function loadWellMarkers(map) {
+  try {
+    const data = await apiFetch('/wells/map');
+    data.forEach(w => {
+      const color = w.water_level_change < -2 ? '#ff2d55' : w.water_level_change < 0 ? '#ff8c00' : '#00ff9d';
+      L.circleMarker([w.lat, w.lng], {
+        radius: 5, color, fillColor: color, fillOpacity: 0.7, weight: 1
+      }).addTo(map).bindPopup(`
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:#e0f0ff;background:#061928;padding:4px">
+          <strong style="color:#00d4ff">${w.name}</strong><br>
+          Site: ${w.site_no}<br>
+          Level: ${w.water_level_m}m<br>
+          Change: <span style="color:${color}">${w.water_level_change > 0 ? '+' : ''}${w.water_level_change}m</span><br>
+          Aquifer: ${w.aquifer_name}
+        </div>
+      `);
+    });
+  } catch(e) {}
+}
+
+async function loadMapList() {
+  try {
+    if (!aquiferMapData) {
+      aquiferMapData = await apiFetch('/aquifers/map');
+    }
+    const data = aquiferMapData;
+    document.getElementById('map-list').innerHTML = data.map(aq => `
+      <div class="risk-row" style="padding:12px 8px">
+        <div style="flex:1">
+          <div class="risk-name">${aq.name}</div>
+          <div class="risk-region">${aq.state} · ${aq.region}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:3px">
+            ${aq.well_count || 0} wells · ${aq.area_km2?.toLocaleString() || '—'} km²
+          </div>
+        </div>
+        <div>
+          <span class="status-pill ${aq.status}">${aq.status}</span>
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px;text-align:right">
+            ${(aq.stress_level*100).toFixed(0)}%
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── WELLS ──
+async function loadWells() {
+  try {
+    const [stats, wells] = await Promise.all([
+      apiFetch('/wells/stats'),
+      apiFetch('/wells/?limit=50')
+    ]);
+    document.getElementById('ws-total').textContent = stats.total;
+    document.getElementById('ws-active').textContent = stats.active;
+    document.getElementById('ws-declining').textContent = stats.declining;
+    document.getElementById('ws-critical').textContent = stats.critical;
+
+    document.getElementById('wells-tbody').innerHTML = wells.map(w => `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--accent)">${w.site_no}</td>
+        <td>${w.name}</td>
+        <td style="color:var(--muted)">${w.aquifer_name || '—'}</td>
+        <td style="font-family:var(--font-mono)">${w.depth_m?.toFixed(1) || '—'}</td>
+        <td style="font-family:var(--font-mono)">${w.water_level_m?.toFixed(2) || '—'}m</td>
+        <td style="font-family:var(--font-mono);color:${w.water_level_change < 0 ? 'var(--danger)' : 'var(--accent2)'}">
+          ${w.water_level_change > 0 ? '+' : ''}${w.water_level_change?.toFixed(2) || '0'}m
+        </td>
+        <td><span class="status-pill ${w.status === 'active' ? 'normal' : 'moderate'}">${w.status}</span></td>
+      </tr>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── ALERTS ──
+async function loadAlerts() {
+  try {
+    // Load summary first (fast) so UI is responsive
+    const summary = await fetchWithTimeout('/alerts/summary', 2000).catch(() => null);
+    if (summary) {
+      document.getElementById('al-critical').textContent = summary.critical;
+      document.getElementById('al-high').textContent = summary.high;
+      document.getElementById('al-moderate').textContent = summary.moderate;
+      document.getElementById('al-unread').textContent = summary.unacknowledged;
+    } else {
+      // show demo summary while we fetch full list
+      document.getElementById('al-critical').textContent = '...';
+      document.getElementById('al-high').textContent = '...';
+      document.getElementById('al-moderate').textContent = '...';
+      document.getElementById('al-unread').textContent = '...';
+    }
+
+    // Fetch full alert list in background (non-blocking)
+    apiFetch('/alerts/?is_active=true&limit=50')
+      .then(alerts => { allAlerts = alerts; renderAlerts(alerts); })
+      .catch(() => { if (!summary) renderDemoAlerts(); });
+
+  } catch(e) { renderDemoAlerts(); }
+}
+
+function filterAlerts() {
+  const f = document.getElementById('alert-filter').value;
+  renderAlerts(f ? allAlerts.filter(a => a.severity === f) : allAlerts);
+}
+
+function renderAlerts(alerts) {
+  document.getElementById('alerts-list').innerHTML = alerts.map(a => `
+    <div class="alert-item ${a.severity}" id="alert-${a.id}">
+      <span class="alert-sev ${a.severity}">${a.severity}</span>
+      <div style="flex:1">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-msg">${a.message}</div>
+        <div class="alert-time">${a.aquifer_name || a.region} · ${timeAgo(a.created_at)}</div>
+      </div>
+      ${!a.is_acknowledged 
+        ? `<button class="btn-ack" onclick="ackAlert(${a.id}, true)">ACK</button>` 
+        : `<button class="btn-ack" onclick="ackAlert(${a.id}, false)" style="color:var(--accent2);border-color:var(--accent2)">UN-ACK</button>`}
+    </div>
+  `).join('') || '<div style="color:var(--accent2);padding:20px;text-align:center">No alerts matching filter</div>';
+}
+
+async function ackAlert(id, isAcking = true) {
+  // Optimistic UI Update
+  const a = allAlerts.find(a => a.id === id);
+  if (a) a.is_acknowledged = isAcking;
+
+  const alertContainer = document.getElementById(`alert-${id}`);
+  const btn = alertContainer ? alertContainer.querySelector('.btn-ack') : null;
+  
+  if (btn) {
+    if (isAcking) {
+      btn.outerHTML = `<button class="btn-ack" onclick="ackAlert(${id}, false)" style="color:var(--accent2);border-color:var(--accent2)">UN-ACK</button>`;
+    } else {
+      btn.outerHTML = `<button class="btn-ack" onclick="ackAlert(${id}, true)">ACK</button>`;
+    }
+  }
+
+  // Dynamically update unread counts across the UI
+  const currentUnread = allAlerts.filter(x => !x.is_acknowledged).length;
+  const elementsToUpdate = ['al-unread', 'nav-alert-badge', 'stat-alerts', 'alert-count'];
+  elementsToUpdate.forEach(elId => {
+    const el = document.getElementById(elId);
+    if (el && el.textContent !== '—' && el.textContent !== '...') {
+      el.textContent = currentUnread;
+    }
+  });
+
+  try {
+    const endpoint = isAcking ? 'acknowledge' : 'unacknowledge';
+    await apiFetch(`/alerts/${id}/${endpoint}`, 'PUT', {});
+  } catch(e) {
+    console.error("Failed to toggle alert state", e);
+    // Rollback optimistic update on failure
+    if (a) a.is_acknowledged = !isAcking;
+    renderAlerts(allAlerts);
+  }
+}
+
+// ── FORECAST ──
+let forecastChart2, demandChart2;
+async function loadForecastPage() {
+  try {
+    const aquifers = await apiFetch('/aquifers/');
+    const sel = document.getElementById('forecast-aq-select');
+    sel.innerHTML = aquifers.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    loadForecast();
+    loadScarcity();
+  } catch(e) {}
+}
+
+async function loadForecast() {
+  const id = document.getElementById('forecast-aq-select').value;
+  if (!id) return;
+  try {
+    const [fc, dem] = await Promise.all([
+      apiFetch(`/forecasting/aquifer/${id}?days=90`),
+      apiFetch(`/forecasting/demand/${id}?days=90`)
+    ]);
+    renderForecastChart(fc);
+    renderDemandChart(dem);
+  } catch(e) {}
+}
+
+function renderForecastChart(data) {
+  const ctx = document.getElementById('forecast-chart').getContext('2d');
+  if (forecastChart) forecastChart.destroy();
+  const fc = data.forecast || [];
+  forecastChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: fc.filter((_,i) => i % 7 === 0).map(f => f.date?.slice(5)),
+      datasets: [
+        { label: 'Predicted Level', data: fc.filter((_,i)=>i%7===0).map(f=>f.predicted_level_m), borderColor:'#00d4ff', tension:0.4, pointRadius:0, borderWidth:2, fill:false },
+        { label: 'Upper Bound', data: fc.filter((_,i)=>i%7===0).map(f=>f.upper_bound), borderColor:'rgba(0,212,255,0.2)', tension:0.4, pointRadius:0, borderWidth:1, fill:'+1', borderDash:[4,4] },
+        { label: 'Lower Bound', data: fc.filter((_,i)=>i%7===0).map(f=>f.lower_bound), borderColor:'rgba(0,212,255,0.2)', backgroundColor:'rgba(0,212,255,0.04)', tension:0.4, pointRadius:0, borderWidth:1, fill:false }
+      ]
+    },
+    options: { ...chartOptions(), scales: { x: xScale(), y: yScale('Level (m)') } }
+  });
+}
+
+function renderDemandChart(data) {
+  const ctx = document.getElementById('demand-chart').getContext('2d');
+  if (demandChart) demandChart.destroy();
+  const fc = (data.forecast || []).filter((_,i)=>i%7===0);
+  demandChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: fc.map(f => f.date?.slice(5)),
+      datasets: [
+        { label: 'Agricultural', data: fc.map(f=>f.agricultural_mm3), backgroundColor:'rgba(0,255,157,0.7)', stack:'d' },
+        { label: 'Urban', data: fc.map(f=>f.urban_mm3), backgroundColor:'rgba(0,212,255,0.7)', stack:'d' },
+        { label: 'Industrial', data: fc.map(f=>f.industrial_mm3), backgroundColor:'rgba(255,140,0,0.7)', stack:'d' }
+      ]
+    },
+    options: { ...chartOptions(), scales: { x: xScale(), y: yScale('Demand (mm³)') } }
+  });
+}
+
+async function loadScarcity() {
+  try {
+    const data = await apiFetch('/forecasting/scarcity-risk');
+    document.getElementById('scarcity-list').innerHTML = data.slice(0,8).map(r => `
+      <div class="risk-row">
+        <div style="width:180px">
+          <div class="risk-name" style="font-size:12px">${r.aquifer_name}</div>
+          <div class="risk-region">${r.state}</div>
+        </div>
+        <div style="flex:1">
+          <div class="risk-bar-wrap" style="width:100%">
+            <div class="risk-bar" style="width:${r.risk_score}%;background:${riskColor(r.risk_category)}"></div>
+          </div>
+        </div>
+        <div class="risk-score" style="color:${riskColor(r.risk_category)};width:50px;text-align:right">${r.risk_score}</div>
+        <span class="status-pill ${r.risk_category === 'critical' ? 'critical' : r.risk_category === 'high' ? 'high' : r.risk_category === 'moderate' ? 'moderate' : 'normal'}" style="width:80px;text-align:center">${r.risk_category}</span>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── HISTORY ──
+async function loadHistoryPage() {
+  try {
+    const aquifers = await apiFetch('/aquifers/');
+    const sel = document.getElementById('history-aq-select');
+    sel.innerHTML = aquifers.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    loadHistory();
+    loadRegionalSummary();
+  } catch(e) {}
+}
+
+async function loadHistory() {
+  const id = document.getElementById('history-aq-select')?.value;
+  const days = document.getElementById('history-days')?.value || 90;
+  if (!id) return;
+  try {
+    const data = await apiFetch(`/aquifers/${id}/history?days=${days}`);
+    renderHistoryChart(data);
+  } catch(e) {}
+}
+
+function renderHistoryChart(data) {
+  const ctx = document.getElementById('history-chart').getContext('2d');
+  if (historyChart) historyChart.destroy();
+  historyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date?.slice(5)),
+      datasets: [
+        { label: 'Avg Level', data: data.map(d=>d.avg_level), borderColor:'#00d4ff', fill:true, backgroundColor:'rgba(0,212,255,0.05)', tension:0.3, pointRadius:0, borderWidth:2 },
+        { label: 'Max Level', data: data.map(d=>d.max_level), borderColor:'rgba(0,255,157,0.4)', fill:false, tension:0.3, pointRadius:0, borderWidth:1, borderDash:[4,4] },
+        { label: 'Min Level', data: data.map(d=>d.min_level), borderColor:'rgba(255,45,85,0.4)', fill:false, tension:0.3, pointRadius:0, borderWidth:1, borderDash:[4,4] }
+      ]
+    },
+    options: { ...chartOptions(), scales: { x: xScale(), y: yScale('Level (m)') } }
+  });
+}
+
+async function loadRegionalSummary() {
+  try {
+    const data = await apiFetch('/dashboard/regional-summary');
+    document.getElementById('regional-tbody').innerHTML = data.map(r => `
+      <tr>
+        <td style="font-weight:700">${r.state}</td>
+        <td style="font-family:var(--font-mono)">${r.aquifer_count}</td>
+        <td>
+          <div class="stress-bar-wrap">
+            <div class="stress-bar" style="width:${r.avg_stress*100}%;background:${stressColor(r.avg_stress)}"></div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">${(r.avg_stress*100).toFixed(0)}%</span>
+        </td>
+        <td style="font-family:var(--font-mono)">${r.total_extraction?.toFixed(1) || '—'}</td>
+        <td style="font-family:var(--font-mono)">${r.total_recharge?.toFixed(1) || '—'}</td>
+        <td style="font-family:var(--font-mono);color:${r.total_recharge > r.total_extraction ? 'var(--accent2)' : 'var(--danger)'}">
+          ${r.total_recharge > r.total_extraction ? '+' : ''}${(r.total_recharge - r.total_extraction)?.toFixed(1) || '—'}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── REGULATORY ──
+async function loadRegulatory() {
+  try {
+    // Fetch compliance quickly with a timeout and render immediately
+    let compliance = [];
+    try {
+      compliance = await fetchWithTimeout('/regulatory/compliance', 2500);
+      renderCompliance(compliance);
+    } catch (e) {
+      // show placeholder if slow
+      document.getElementById('compliance-list').innerHTML = '<div class="loading">Taking longer to load compliance data…</div>';
+    }
+
+    // Fetch recommendations and permits in background and render when ready
+    apiFetch('/regulatory/recommendations')
+      .then(recs => renderRecommendations(recs))
+      .catch(() => {/* ignore, keep placeholder */});
+
+    apiFetch('/regulatory/permits')
+      .then(permits => renderPermits(permits))
+      .catch(() => {/* ignore, keep placeholder */});
+
+  } catch (e) {
+    // Final fallback
+    document.getElementById('compliance-list').innerHTML = '<div class="loading">Unable to load regulatory data</div>';
+    document.getElementById('recommendations-list').innerHTML = '<div class="loading">Unable to load recommendations</div>';
+    document.getElementById('permits-tbody').innerHTML = '<tr><td colspan="6" class="loading">Unable to load permits</td></tr>';
+  }
+}
+
+function renderCompliance(data) {
+  document.getElementById('compliance-list').innerHTML = data.slice(0,8).map(c => `
+    <div class="risk-row">
+      <div style="flex:1">
+        <div class="risk-name" style="font-size:12px">${c.aquifer_name}</div>
+        <div class="risk-region">${c.state} · ratio: ${c.extraction_recharge_ratio}x</div>
+      </div>
+      <span class="status-pill ${c.compliant ? 'normal' : 'critical'}">${c.compliant ? '✓ OK' : '✗ VIOLATION'}</span>
+    </div>
+  `).join('');
+}
+
+function renderRecommendations(data) {
+  document.getElementById('recommendations-list').innerHTML = data.slice(0,4).map(r => `
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-title">${r.aquifer_name}</div>
+        <span class="status-pill ${r.priority === 'urgent' ? 'critical' : 'high'}">${r.priority}</span>
+      </div>
+      <ul class="rec-list">${r.recommendations.slice(0,3).map(rc => `<li>${rc}</li>`).join('')}</ul>
+    </div>
+  `).join('') || '<div class="loading">All aquifers compliant</div>';
+}
+
+function renderPermits(data) {
+  document.getElementById('permits-tbody').innerHTML = data.map(p => `
+    <tr>
+      <td style="font-weight:700">${p.aquifer_name}</td>
+      <td>${p.state}</td>
+      <td style="font-family:var(--font-mono)">${p.permitted_extraction}</td>
+      <td style="font-family:var(--font-mono)">${p.actual_extraction}</td>
+      <td><span class="status-pill ${p.permit_status === 'active' ? 'normal' : 'critical'}">${p.permit_status}</span></td>
+      <td>
+        <div class="stress-bar-wrap">
+          <div class="stress-bar" style="width:${p.compliance_score}%;background:${p.compliance_score > 80 ? 'var(--accent2)' : p.compliance_score > 50 ? 'var(--warn)' : 'var(--danger)'}"></div>
+        </div>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">${p.compliance_score}%</span>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── DEMO DATA (fallback) ──
+function renderDemoData() {
+  document.getElementById('stat-total').textContent = '10';
+  document.getElementById('stat-critical').textContent = '1';
+  document.getElementById('stat-alerts').textContent = '7';
+  document.getElementById('stat-stress').textContent = '56%';
+  document.getElementById('dash-alerts').innerHTML = `
+    <div class="alert-item critical"><span class="alert-sev critical">critical</span><div><div class="alert-title">Critical Stress: Ogallala Aquifer</div><div class="alert-time">High Plains · 2h ago</div></div></div>
+    <div class="alert-item high"><span class="alert-sev high">high</span><div><div class="alert-title">High Depletion: Central Valley</div><div class="alert-time">California · 4h ago</div></div></div>
+  `;
+  document.getElementById('dash-stressed').innerHTML = `
+    <div class="risk-row"><div><div class="risk-name">Ogallala Aquifer</div><div class="risk-region">High Plains</div></div><div class="stress-bar-wrap"><div class="stress-bar" style="width:82%;background:#ff2d55"></div></div><span class="status-pill critical">critical</span></div>
+    <div class="risk-row"><div><div class="risk-name">Central Valley</div><div class="risk-region">California</div></div><div class="stress-bar-wrap"><div class="stress-bar" style="width:75%;background:#ff8c00"></div></div><span class="status-pill high">high</span></div>
+  `;
+  // Render demo charts
+  renderTrendChart(Array.from({length:30},(_,i)=>({date:`2025-${String(i+1).padStart(2,'0')}-01`, avg_level: 28 - i*0.05 + Math.sin(i*0.5)*0.3})));
+  renderDistChart([{status:'normal',count:5},{status:'moderate',count:2},{status:'high',count:2},{status:'critical',count:1}]);
+}
+
+function renderDemoAlerts() {
+  const demo = [
+    {id:1,severity:'critical',title:'Critical Stress: Ogallala',message:'Stress at 82%. Immediate action required.',aquifer_name:'Ogallala',created_at:new Date().toISOString(),is_acknowledged:false},
+    {id:2,severity:'high',title:'High Depletion: Central Valley',message:'Extraction exceeds recharge by 15x.',aquifer_name:'Central Valley',created_at:new Date().toISOString(),is_acknowledged:false},
+    {id:3,severity:'moderate',title:'Low Recharge: Edwards',message:'40% below seasonal average.',aquifer_name:'Edwards',created_at:new Date().toISOString(),is_acknowledged:true},
+  ];
+  allAlerts = demo;
+  document.getElementById('al-critical').textContent = 1;
+  document.getElementById('al-high').textContent = 2;
+  document.getElementById('al-moderate').textContent = 3;
+  document.getElementById('al-unread').textContent = 4;
+  renderAlerts(demo);
+}
+
+// ── HELPERS ──
+async function apiFetch(path, method = 'GET', body = null) {
+  if (token === 'demo') throw new Error('demo-mode'); // force demo fallbacks
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body)  opts.body = JSON.stringify(body);
+  const res = await fetch(`${API}${path}`, opts);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+// Fetch with timeout helper
+async function fetchWithTimeout(path, timeoutMs = 3000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, { signal: controller.signal });
+    clearTimeout(id);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.json();
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
+function stressColor(level) {
+  if (level >= 0.75) return '#ff2d55';
+  if (level >= 0.55) return '#ff8c00';
+  if (level >= 0.35) return '#ffd600';
+  return '#00ff9d';
+}
+
+function stressColorHex(level) {
+  if (level >= 0.75) return '#ff2d55';
+  if (level >= 0.55) return '#ff8c00';
+  if (level >= 0.35) return '#ffd600';
+  return '#00ff9d';
+}
+
+function riskColor(cat) {
+  return {critical:'#ff2d55',high:'#ff8c00',moderate:'#ffd600',low:'#00ff9d'}[cat] || '#4a7fa5';
+}
+
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = (Date.now() - new Date(ts)) / 1000;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+function chartOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#4a7fa5', font: { family: 'Space Mono', size: 10 } } }
+    }
+  };
+}
+function xScale() {
+  return { ticks: { color: '#4a7fa5', font: { family: 'Space Mono', size: 10 } }, grid: { color: 'rgba(14,58,87,0.5)' } };
+}
+function yScale(label) {
+  return { ticks: { color: '#4a7fa5', font: { family: 'Space Mono', size: 10 } }, grid: { color: 'rgba(14,58,87,0.5)' }, title: { display: true, text: label, color: '#4a7fa5', font: { family: 'Space Mono', size: 10 } } };
+}
+
+// ── LIVE DATA / SYNC ──
+async function loadLiveData() {
+  loadSyncStatus();
+  loadSyncLog();
+}
+
+async function loadSyncStatus() {
+  try {
+    const data = await apiFetch('/sync/status');
+    const src = data.sources || {};
+
+    // USGS
+    const usgs = src.usgs || {};
+    document.getElementById('sync-usgs-status').textContent = usgs.status === 'success' ? '✓ LIVE' : usgs.status === 'running' ? '⟳ SYNCING' : usgs.status || 'PENDING';
+    document.getElementById('sync-usgs-time').textContent = usgs.last_run ? 'Last: ' + timeAgo(usgs.last_run) : 'Not synced yet';
+
+    // NOAA
+    const noaa = src.noaa || {};
+    document.getElementById('sync-noaa-status').textContent = noaa.status === 'success' ? '✓ LIVE' : noaa.status === 'running' ? '⟳ SYNCING' : noaa.status || 'PENDING';
+    document.getElementById('sync-noaa-time').textContent = noaa.last_run ? 'Last: ' + timeAgo(noaa.last_run) : 'Not synced yet';
+
+    // GRACE
+    const grace = src.grace || {};
+    document.getElementById('sync-grace-status').textContent = grace.status === 'success' ? '✓ LIVE' : grace.status === 'running' ? '⟳ SYNCING' : grace.status || 'PENDING';
+    document.getElementById('sync-grace-time').textContent = grace.last_run ? 'Last: ' + timeAgo(grace.last_run) : 'Not synced yet';
+
+    // Scheduler
+    document.getElementById('sync-scheduler').textContent = data.scheduler_running ? '● ONLINE' : '○ OFFLINE';
+  } catch(e) {
+    // Demo fallback
+    document.getElementById('sync-usgs-status').textContent = 'READY';
+    document.getElementById('sync-noaa-status').textContent = 'READY';
+    document.getElementById('sync-grace-status').textContent = 'READY';
+    document.getElementById('sync-grace-time').textContent = 'Start backend to activate';
+  }
+}
+
+async function triggerSync(source) {
+  try {
+    const result = await apiFetch(`/sync/trigger/${source}`, 'POST', {});
+    alert(`✅ ${source.toUpperCase()} sync triggered!\nCheck the log in a few seconds.`);
+    // clear any cached map/geojson data so maps will reflect new stress values
+    aquiferMapData = null;
+    stressFeatures = null;
+    if (stressMap) {
+      stressMap.eachLayer(layer => {
+        if (layer.feature) stressMap.removeLayer(layer);
+      });
+      loadStressLayer(stressMap);
+    }
+    if (fullMap) {
+      fullMap.eachLayer(layer => {
+        if (layer.feature) fullMap.removeLayer(layer);
+      });
+      loadStressLayer(fullMap);
+      loadMapList();
+    }
+
+    setTimeout(loadSyncStatus, 3000);
+    setTimeout(loadSyncLog, 5000);
+  } catch(e) {
+    alert(`⚠ Backend not running.\nStart the backend first:\n  cd backend && python main.py`);
+  }
+}
+
+async function loadSyncLog() {
+  try {
+    const rows = await apiFetch('/sync/log?limit=20');
+    document.getElementById('sync-log-tbody').innerHTML = rows.length ? rows.map(r => `
+      <tr>
+        <td style="font-family:var(--font-mono);color:var(--accent)">${r.source}</td>
+        <td style="font-family:var(--font-mono);font-size:12px">${r.synced_at ? r.synced_at.replace('T',' ').slice(0,19) : '—'}</td>
+        <td style="font-family:var(--font-mono)">${r.wells_updated ?? '—'}</td>
+        <td style="font-family:var(--font-mono)">${r.readings_added ?? '—'}</td>
+        <td style="font-family:var(--font-mono);color:${r.errors > 0 ? 'var(--danger)' : 'var(--accent2)'}">${r.errors ?? 0}</td>
+        <td><span class="status-pill ${r.status === 'success' ? 'normal' : 'moderate'}">${r.status}</span></td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;font-family:var(--font-mono)">No sync history yet — trigger a sync above</td></tr>';
+  } catch(e) {
+    document.getElementById('sync-log-tbody').innerHTML = `
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;font-family:var(--font-mono)">
+        Backend offline — start backend to see live sync logs
+      </td></tr>`;
+  }
+}
+
+// ── RECOMMENDATIONS ──
+async function loadRecommendations() {
+  const selectParams = document.getElementById('rec-type-select');
+  if(!selectParams) return;
+  const siteType = selectParams.value;
+  
+  const tbody = document.getElementById('rec-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted);font-family:var(--font-mono)">Analyzing Live Satellite and Climate Data...</td></tr>';
+  
+  try {
+    const data = await apiFetch(`/recommendations/?site_type=${siteType}`);
+    
+    if(!data.recommendations || data.recommendations.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No recommendations found.</td></tr>';
+      return;
+    }
+    
+    let html = '';
+    data.recommendations.forEach((aq, index) => {
+      // Determine color based on suitability score
+      let scoreColor = 'var(--text)';
+      let scoreClass = 'normal';
+      if(aq.suitability_score >= 80) { scoreColor = 'var(--accent2)'; scoreClass = 'normal'; }
+      else if(aq.suitability_score >= 60) { scoreColor = '#ffd600'; scoreClass = 'moderate'; }
+      else if(aq.suitability_score >= 40) { scoreColor = 'var(--warn)'; scoreClass = 'high'; }
+      else { scoreColor = 'var(--danger)'; scoreClass = 'critical'; }
+      
+      const rank = index + 1;
+      
+      html += `
+        <tr>
+          <td><span style="font-family:var(--font-mono);font-size:14px;color:var(--accent)">#${rank}</span></td>
+          <td style="font-weight:600">${aq.name}</td>
+          <td style="color:var(--muted)">${aq.region}, ${aq.state}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${scoreColor}">${aq.suitability_score}</span>
+              <div class="stress-bar-wrap" style="width:60px;background:var(--border)">
+                <div class="stress-bar" style="width:${aq.suitability_score}%; background:${scoreColor};height:100%;border-radius:3px"></div>
+              </div>
+            </div>
+          </td>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">
+            <span class="status-pill ${scoreClass}">${aq.key_factor}</span>
+          </td>
+        </tr>
+      `;
+    });
+    
+    tbody.innerHTML = html;
+    
+  } catch(e) {
+    console.error("Recommendations failed:", e);
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger)">Failed to load recommendations: ${e.message}</td></tr>`;
+  }
+}
+
+// Init stress map on page load
+window.addEventListener('load', async () => {
+  // Check for existing session token
+  try {
+    const savedToken = localStorage.getItem('aip_token');
+    if (savedToken) {
+      token = savedToken;
+      // Fetch user profile to verify token
+      const res = await fetch(`${API}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        currentUser = await res.json();
+        enterApp(false);
+      } else {
+        doLogout();
+      }
+    }
+  } catch(e) {
+    console.error("Session restore failed", e);
+  }
+
+  setTimeout(() => {
+    if (document.getElementById('stress-map') && !stressMap) initStressMap();
+  }, 500);
+});
+</script>
+</body>
+</html>
