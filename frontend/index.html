@@ -286,10 +286,10 @@
 
   @media (max-width: 1200px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .grid-map { grid-template-columns: 1fr; }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
+    .grid-map { grid-template-columns: 1fr; }
     .sidebar {
       position: fixed; left: -220px; top: 56px; bottom: 0; z-index: 1000;
       transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1007,8 +1007,8 @@ function showPage(page) {
   const navEl = document.getElementById(`nav-${page}`);
   if (navEl) navEl.classList.add('active');
 
-  // Close sidebar on mobile after clicking
-  if (window.innerWidth <= 900) {
+  // Close sidebar on mobile/tablet after clicking
+  if (window.innerWidth <= 1024) {
     const sidebar = document.querySelector('.sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     if (sidebar.classList.contains('mobile-active')) {
@@ -1163,7 +1163,7 @@ function initStressMap() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors', maxZoom: 18
   }).addTo(stressMap);
-  loadStressLayer(stressMap);
+  loadAnalyticalHeatmap(stressMap);
   // ensure correct sizing after container becomes visible
   stressMap.whenReady(() => setTimeout(() => stressMap.invalidateSize(), 100));
 }
@@ -1225,6 +1225,46 @@ async function loadStressLayer(map) {
         L.circle([aq.lng, aq.lat], {radius, color, fillColor: color, fillOpacity: 0.4}).addTo(map);
       });
     }
+  }
+}
+
+async function loadAnalyticalHeatmap(map) {
+  try {
+    if (!stressFeatures) {
+      stressFeatures = await apiFetch('/aquifers/geojson');
+    }
+    
+    if (map._heatLayer) {
+      map.removeLayer(map._heatLayer);
+    }
+
+    // Convert GeoJSON grid points to weighted heat points
+    const heatData = stressFeatures.features.map(f => {
+      const center = f.geometry.coordinates[0][0]; // Simplified: take first corner as point
+      const stress = f.properties.stress_level;
+      // Weight: higher stress = higher intensity
+      let weight = 0.2;
+      if (stress > 0.75) weight = 1.0;
+      else if (stress > 0.5) weight = 0.7;
+      else if (stress > 0.3) weight = 0.4;
+      
+      return [center[1], center[0], weight];
+    });
+
+    map._heatLayer = L.heatLayer(heatData, {
+      radius: 25,
+      blur: 20,
+      maxZoom: 10,
+      gradient: {
+        0.2: '#00ff9d', // Normal
+        0.4: '#ffd600', // Moderate
+        0.7: '#ff8c00', // High
+        1.0: '#ff2d55'  // Critical
+      }
+    }).addTo(map);
+
+  } catch (e) {
+    console.error("Failed to load analytical heatmap:", e);
   }
 }
 

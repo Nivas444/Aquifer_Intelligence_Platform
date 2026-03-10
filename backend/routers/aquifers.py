@@ -52,7 +52,7 @@ def get_aquifer_geojson(db: sqlite3.Connection = Depends(get_db)):
     stress_map = {r[0]: {'stress': r[1], 'status': r[2], 'name': r[3], 'region': r[4], 'state': r[5]} for r in rows}
 
     features = []
-    cell_deg = 0.5  # grid resolution in degrees (~55 km at mid lat)
+    cell_deg = 0.2  # high-resolution grid (~22 km at mid lat)
 
     # helper to convert average water_level_change to 0‑1 stress
     def change_to_stress(change, default):
