@@ -1118,7 +1118,7 @@ function initStressMap() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors', maxZoom: 18
   }).addTo(stressMap);
-  loadWaterUsageHeatmap(stressMap);
+  loadStressLayer(stressMap);
   // ensure correct sizing after container becomes visible
   stressMap.whenReady(() => setTimeout(() => stressMap.invalidateSize(), 100));
 }
