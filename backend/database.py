@@ -125,6 +125,29 @@ def init_db():
         FOREIGN KEY (created_by) REFERENCES users(id)
     )''')
 
+    # Grace Anomalies table
+    c.execute('''CREATE TABLE IF NOT EXISTS grace_anomalies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        aquifer_id INTEGER NOT NULL,
+        anomaly_cm REAL NOT NULL,
+        measurement_date DATE,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (aquifer_id) REFERENCES aquifers(id)
+    )''')
+
+    # Climate Data table
+    c.execute('''CREATE TABLE IF NOT EXISTS climate_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        aquifer_id INTEGER NOT NULL,
+        data_date DATE NOT NULL,
+        precip_mm REAL, tmax_c REAL, tmin_c REAL,
+        eto_mm REAL, drought_index REAL DEFAULT 0, recharge_factor REAL DEFAULT 1.0,
+        source TEXT DEFAULT 'NOAA',
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(aquifer_id, data_date),
+        FOREIGN KEY (aquifer_id) REFERENCES aquifers(id)
+    )''')
+
     # Performance Indexes
     c.execute('CREATE INDEX IF NOT EXISTS idx_wells_status ON wells(status)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_wells_water_change ON wells(water_level_change)')
